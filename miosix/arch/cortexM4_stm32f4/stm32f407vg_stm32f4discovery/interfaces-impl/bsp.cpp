@@ -83,9 +83,11 @@ void IRQbspInit()
 
 void bspInit2()
 {
-     #ifdef WITH_FILESYSTEM
-    basicFilesystemSetup(SDIODriver::instance());
-#endif //WITH_FILESYSTEM
+    #ifdef WITH_FILESYSTEM
+     intrusive_ref_ptr<DevFs> devFs=basicFilesystemSetup(SDIODriver::instance());
+    devFs->addDevice("bluetooth",
+intrusive_ref_ptr<Device>(new STM32Serial(2,19200)));
+    #endif //WITH_FILESYSTEM
 }
 
 //

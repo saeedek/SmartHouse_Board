@@ -6,11 +6,13 @@
 using namespace miosix;
 using namespace std;
 void initTempADC();
+void initBluetoothModule();
 void printBits(size_t const size, void  * ptr);
 
 int main()
 {
     initTempADC();
+	initBluetoothModule();
 }
 void initTempADC(){
     
@@ -42,4 +44,41 @@ void initTempADC(){
     ADC1->CR2 |= (1<<30);
    
     
+}
+void initBluetoothModule(){
+    {
+        FastInterruptDisableLock dLock;
+        //<- The constructor of dLock has disabled interrupts
+
+        RCC->APB2ENR |= RCC_APB1ENR_USART2EN; //Enable USART1
+
+    }   //<- The destructor of dLock enables back interrupts
+    
+    //Enable USART
+    USART2->CR1 |= (1<<13);
+    int fd=open("/dev/bluetooth",O_RDWR);
+    
+    for(;;){
+        Thread::sleep(500);
+        int a=write(fd, "This will be output to testfile.txt\n", 36);
+        fflush(fd);
+        printf("Printed to %d , %d Bytes\n",fd,a);
+    }
+   
+}
+void printBits(size_t const size, void * ptr)
+{
+    unsigned char *b = (unsigned char*) ptr;
+    unsigned char byte;
+    int i, j;
+
+    for (i=size-1;i>=0;i--)
+    {
+        for (j=7;j>=0;j--)
+        {
+            byte = (b[i] >> j) & 1;
+            printf("%u", byte);
+        }
+    }
+    puts("");
 }
