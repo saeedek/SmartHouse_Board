@@ -1,18 +1,81 @@
 #include <miosix.h>
 #include <stdio.h>
 #include <bitset>
+#include <sstream>
 #include <iostream>
 #include <sys/_default_fcntl.h>
+#include <algorithm>
+#include <pthread.h>
 using namespace miosix;
 using namespace std;
+typedef Gpio<GPIOD_BASE,15> blueLed;    //b
+typedef Gpio<GPIOD_BASE,14> redLed;     //r
+typedef Gpio<GPIOD_BASE,12> greenLed;   //g
+typedef Gpio<GPIOD_BASE,13> orangeLed;  //o
 void initTempADC();
 void initBluetoothModule();
 void printBits(size_t const size, void  * ptr);
+string mySplit(string str);
+#define BUFSIZE 20
+int fd;
+string START="FF#";
+string END= "#FF";
+string LOGTAG="#SmartHome-Log: ";
+pthread_t t1,t2;
+
+
+void* tempWrite(void*){
+    
+}
+
+void* bluetoothRead(void*) {
+    printf(LOGTAG.append("Bluetooth read is on\n").c_str());
+    char buf2[10];
+    for(;;) {
+        read(fd,buf2,10);
+        string str=mySplit(string(buf2));
+        
+        if(str.substr(0,1)=="b"){
+            if(str.substr(1,1)=="0")
+                blueLed::low();
+            else
+                blueLed::high();
+        }
+        else if(str.substr(0,1)=="r"){
+            if(str.substr(1,1)=="0")
+                redLed::low();
+            else
+                redLed::high();
+        }
+        else if(str.substr(0,1)=="g"){
+            if(str.substr(1,1)=="0")
+                greenLed::low();
+            else
+                greenLed::high();
+        }
+        else if(str.substr(0,1)=="o"){
+            if(str.substr(1,1)=="0")
+                orangeLed::low();
+            else
+                orangeLed::high();
+        }
+        else if(str.substr(0,1)=="t"){
+            
+        }
+    }
+}
 
 int main()
 {
+    blueLed::mode(Mode::OUTPUT);
+    redLed::mode(Mode::OUTPUT);
+    orangeLed::mode(Mode::OUTPUT);
+    greenLed::mode(Mode::OUTPUT);
     initTempADC();
-	initBluetoothModule();
+    initBluetoothModule();
+    pthread_join(t1,NULL);
+    pthread_join(t2,NULL);
+    printf("joined");
 }
 void initTempADC(){
     
@@ -42,29 +105,57 @@ void initTempADC(){
     ADC1->CR2 |= (1<<1);
     ADC1->CR2 &= ~(1<<11); //Right alignment of the DR
     ADC1->CR2 |= (1<<30);
-   
+    for(;;){
+        double Vsense=(ADC1->DR*3.0)/4095.0;
+        cout<<"Vsense="<<Vsense<<endl;
+        double temp=((Vsense-0.76)/2.5)+25;
+        cout<<temp<<endl;
+        Thread::sleep(5000);
+        
+    }
     
 }
 void initBluetoothModule(){
-    {
-        FastInterruptDisableLock dLock;
-        //<- The constructor of dLock has disabled interrupts
-
-        RCC->APB2ENR |= RCC_APB1ENR_USART2EN; //Enable USART1
-
-    }   //<- The destructor of dLock enables back interrupts
-    
-    //Enable USART
-    USART2->CR1 |= (1<<13);
-    int fd=open("/dev/bluetooth",O_RDWR);
-    
-    for(;;){
-        Thread::sleep(500);
-        int a=write(fd, "This will be output to testfile.txt\n", 36);
-        fflush(fd);
-        printf("Printed to %d , %d Bytes\n",fd,a);
-    }
    
+   fd = open("/dev/bluetooth", O_RDWR | O_NONBLOCK);
+   
+   //Testing the FileDescriptor
+   if(fd == -1){ 
+       printf(LOGTAG.append("Couldn't Open FileDescriptor\n").c_str());
+   }
+   else{
+       char buf[BUFSIZE];
+       std::stringstream ss;
+       string str;
+       ss << START <<"marco" <<END<< "\r\n";
+       str = ss.str();
+       int a=write(fd, str.c_str(), str.length());
+       if(a==-1){
+           printf(LOGTAG.append("Could not write to FD\n").c_str());
+       }
+       else{
+           printf(LOGTAG.c_str());
+           printf("Have written: %d bytes to %d\n",a,fd);
+           read(fd,buf,BUFSIZE);
+           string str(buf);
+           if(mySplit(str)=="polo"){
+               pthread_create(&t1, NULL, &bluetoothRead, NULL);
+               printf(LOGTAG.c_str());
+               printf("Received from Device: %s\n",str.c_str());
+           }
+           else{
+               printf(LOGTAG.append("Connected Device was not found\n").c_str());
+           }
+       }
+   }
+}
+string mySplit(string str){
+    string first="FF#";
+    string end="#FF";
+    std::string::size_type s=str.find(first);
+    std::string::size_type e=str.find(end);
+    string temp=str.substr(s+first.length(),e-(s+first.length()));
+    return temp;
 }
 void printBits(size_t const size, void * ptr)
 {
