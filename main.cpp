@@ -21,12 +21,7 @@ int fd;
 string START="FF#";
 string END= "#FF";
 string LOGTAG="#SmartHome-Log: ";
-pthread_t t1,t2;
-
-
-void* tempWrite(void*){
-    
-}
+pthread_t t1;
 
 void* bluetoothRead(void*) {
     printf(LOGTAG.append("Bluetooth read is on\n").c_str());
@@ -60,7 +55,14 @@ void* bluetoothRead(void*) {
                 orangeLed::high();
         }
         else if(str.substr(0,1)=="t"){
-            
+            double Vsense=(ADC1->DR*3.0)/4095.0;
+            double temp=((Vsense-0.76)/2.5)+25;
+            std::stringstream ss;
+            string str;
+            double answer = static_cast<double>(static_cast<int>(temp * 100.)) / 100.;
+            ss << START <<answer <<END<< "\r\n";
+            str = ss.str();
+            int a=write(fd, str.c_str(), str.length());
         }
     }
 }
@@ -74,7 +76,6 @@ int main()
     initTempADC();
     initBluetoothModule();
     pthread_join(t1,NULL);
-    pthread_join(t2,NULL);
     printf("joined");
 }
 void initTempADC(){
@@ -105,14 +106,7 @@ void initTempADC(){
     ADC1->CR2 |= (1<<1);
     ADC1->CR2 &= ~(1<<11); //Right alignment of the DR
     ADC1->CR2 |= (1<<30);
-    for(;;){
-        double Vsense=(ADC1->DR*3.0)/4095.0;
-        cout<<"Vsense="<<Vsense<<endl;
-        double temp=((Vsense-0.76)/2.5)+25;
-        cout<<temp<<endl;
-        Thread::sleep(5000);
-        
-    }
+    
     
 }
 void initBluetoothModule(){
@@ -124,31 +118,11 @@ void initBluetoothModule(){
        printf(LOGTAG.append("Couldn't Open FileDescriptor\n").c_str());
    }
    else{
-       char buf[BUFSIZE];
-       std::stringstream ss;
-       string str;
-       ss << START <<"marco" <<END<< "\r\n";
-       str = ss.str();
-       int a=write(fd, str.c_str(), str.length());
-       if(a==-1){
-           printf(LOGTAG.append("Could not write to FD\n").c_str());
-       }
-       else{
-           printf(LOGTAG.c_str());
-           printf("Have written: %d bytes to %d\n",a,fd);
-           read(fd,buf,BUFSIZE);
-           string str(buf);
-           if(mySplit(str)=="polo"){
-               pthread_create(&t1, NULL, &bluetoothRead, NULL);
-               printf(LOGTAG.c_str());
-               printf("Received from Device: %s\n",str.c_str());
-           }
-           else{
-               printf(LOGTAG.append("Connected Device was not found\n").c_str());
-           }
-       }
-   }
+       pthread_create(&t1, NULL, &bluetoothRead, NULL);
+    }
+         
 }
+
 string mySplit(string str){
     string first="FF#";
     string end="#FF";
